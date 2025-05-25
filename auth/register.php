@@ -83,29 +83,138 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8" />
     <title>Register GameHub</title>
+    <style>
+        /* style.css */
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f4f6f8;
+    height: 100vh;
+    position: relative;
+}
+
+h2 {
+    margin-bottom: 25px;
+    color: #333;
+    text-align: center;
+    font-weight: 600;
+}
+
+/* Container untuk form, posisikan di tengah layar */
+.register-container {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: white;
+    padding: 30px 40px;
+    border-radius: 8px;
+    box-shadow: 0 0 15px rgba(0,0,0,0.1);
+    width: 320px;
+}
+
+/* Pesan error */
+.error-msg {
+    color: #c0392b;
+    background-color: #f8d7da;
+    padding: 10px 15px;
+    border-radius: 5px;
+    margin-bottom: 15px;
+    font-size: 14px;
+    border: 1px solid #f5c6cb;
+}
+
+/* Form styling */
+form {
+    display: flex;
+    flex-direction: column;
+}
+
+label, /* Kalau mau pakai label, bisa ditambahkan */
+p {
+    font-weight: bold;
+    margin-bottom: 5px;
+    color: #555;
+    font-size: 14px;
+}
+
+input[type="text"],
+input[type="password"] {
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    font-size: 14px;
+    margin-bottom: 20px;
+    transition: border-color 0.2s ease-in-out;
+}
+
+input[type="text"]:focus,
+input[type="password"]:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 5px rgba(0,123,255,0.5);
+}
+
+input[type="submit"] {
+    background-color: #007bff;
+    border: none;
+    padding: 12px;
+    color: white;
+    font-weight: 600;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background-color 0.3s ease;
+}
+
+input[type="submit"]:hover {
+    background-color: #0056b3;
+}
+
+p a {
+    color: #007bff;
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 0.2s ease;
+}
+
+p a:hover {
+    text-decoration: underline;
+    color: #0056b3;
+}
+
+p {
+    text-align: center;
+    margin-top: 20px;
+    font-size: 14px;
+    color: #555;
+}
+
+    </style>
 </head>
 <body>
-    <h2>Register</h2>
+    <div class="register-container">
+        <h2>Register</h2>
 
-    <!-- Tampilkan pesan error jika ada -->
-    <?php if (!empty($error)): ?>
-        <p style="color:red;"><?= htmlspecialchars($error) ?></p>
-    <?php endif; ?>
+        <!-- Tampilkan pesan error jika ada -->
+        <?php if (!empty($error)): ?>
+            <div class="error-msg"><?= htmlspecialchars($error) ?></div>
+        <?php endif; ?>
 
-    <!-- Form Register -->
-    <form method="post" action="register.php">
-        Username:<br>
-        <input type="text" name="username" value="<?= htmlspecialchars($_POST['username'] ?? '') ?>"><br><br>
+        <!-- Form Register -->
+        <form method="post" action="register.php">
+            <label for="username">Username:</label>
+            <input type="text" id="username" name="username" value="<?= htmlspecialchars($_POST['username'] ?? '') ?>">
 
-        Password:<br>
-        <input type="password" name="password"><br><br>
+            <label for="password">Password:</label>
+            <input type="password" id="password" name="password">
 
-        Konfirmasi Password:<br>
-        <input type="password" name="confirm_password"><br><br>
+            <label for="confirm_password">Konfirmasi Password:</label>
+            <input type="password" id="confirm_password" name="confirm_password">
 
-        <input type="submit" value="Daftar">
-    </form>
+            <input type="submit" value="Daftar">
+        </form>
 
-    <p><a href="/gamehub/auth/login.php">Sudah punya akun? Login</a></p>
+        <p><a href="/gamehub/auth/login.php">Sudah punya akun? Login</a></p>
+    </div>
 </body>
 </html>
