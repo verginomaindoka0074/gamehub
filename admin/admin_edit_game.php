@@ -79,6 +79,19 @@ function handle_screenshot_upload($input_name, $old_file = null) {
     return null;
 }
 
+// Ambil semua genre (opsional, untuk form checkbox)
+$genre_list = [];
+$genre_query = mysqli_query($conn, "SELECT id, name FROM genres ORDER BY id ASC");
+while ($row = mysqli_fetch_assoc($genre_query)) {
+    $genre_list[] = $row;
+}
+
+// Ambil genre game saat ini (ID saja)
+$current_genre_ids = [];
+$genre_query = mysqli_query($conn, "SELECT genre_id FROM game_genres WHERE game_id = $id ORDER BY genre_id ASC");
+while ($row = mysqli_fetch_assoc($genre_query)) {
+    $current_genre_ids[] = (int)$row['genre_id'];
+}
 
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -97,6 +110,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $steam_price = filter_input(INPUT_POST, 'steam_price', FILTER_VALIDATE_FLOAT);
     $epic_price = filter_input(INPUT_POST, 'epic_price', FILTER_VALIDATE_FLOAT);
 
+    $selected_genres = isset($_POST['genres']) ? array_map('intval', $_POST['genres']) : [];
+
+    // Bandingkan: apakah input sama dengan genre saat ini?
+    $genres_changed = count($selected_genres) !== count($current_genre_ids) || array_diff($selected_genres, $current_genre_ids) || array_diff($current_genre_ids, $selected_genres);
 
 
     // Proses upload screenshot (jika ada)
@@ -160,10 +177,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         );
 
         if (mysqli_stmt_execute($stmt_update)) {
-            mysqli_stmt_close($stmt_update);
-            mysqli_close($conn);
-            header("Location: /gamehub/admin/admin_panel.php");
-            exit;
+            if ($genres_changed) {
+                // Hapus semua genre lama
+                mysqli_query($conn, "DELETE FROM game_genres WHERE game_id = $id");
+
+                // Insert genre baru
+                foreach ($selected_genres as $genre_id) {
+                    $genre_id = (int)$genre_id;
+                    mysqli_query($conn, "INSERT INTO game_genres (game_id, genre_id) VALUES ($id, $genre_id)");
+                }}
+            $success = "Berhasil mengupdate data";
+            // mysqli_stmt_close($stmt_update);
+            // mysqli_close($conn);
+            // header("Location: /gamehub/admin/admin_panel.php");
+            // exit;
         } else {
             $error = "Gagal memperbarui data: " . mysqli_error($conn);
         }
@@ -254,7 +281,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         button[type="submit"]:hover {
             background-color: #218838;
         }
-
         .alert-error {
             color: #721c24;
             background-color: #f8d7da;
@@ -295,6 +321,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             border: 1px solid #ccc;
             border-radius: 5px;
         }
+        .genre-list { margin-top: 8px; }
+        .genre-list label { font-weight: normal; display: inline-block; margin-right: 12px; }
+        .genre-list {display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 8px;}
+        .genre-list label {font-weight: normal; display: flex; align-items: center; gap: 6px; background-color: #f1f1f1; padding: 6px 10px; border-radius: 4px; cursor: pointer; transition: background-color 0.2s ease;}
+        .genre-list label:hover {background-color: #e0e0e0;}
     </style>
 </head>
 <body>
@@ -320,6 +351,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <label>Publisher: 
             <input type="text" name="publisher" value="<?php echo htmlspecialchars($publisher); ?>">
         </label>
+
+        <div class="genre-list">
+                <?php foreach ($genre_list as $genre): ?>
+                    <label>
+                        <input type="checkbox" name="genres[]" value="<?= $genre['id']; ?>"
+                            <?= in_array($genre['id'], $current_genre_ids) ? 'checked' : '' ?>>
+                        <?= htmlspecialchars($genre['name']); ?>
+                    </label><br>
+                <?php endforeach; ?>
+        </div>
 
         <label>Tahun Rilis: 
             <input type="number" name="release_year" value="<?php echo htmlspecialchars($release_year); ?>">
