@@ -1,11 +1,12 @@
 <?php
+ob_start();
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
 // Proteksi akses: hanya admin
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
-    header("Location: /gamehub/auth/login.php");
+    header("Location: https://indgamehub.rf.gd/auth/login.php");
     exit;
 }
 
@@ -18,264 +19,203 @@ $genreResult = mysqli_query($conn, $genreSql);
 
 // Parsing filter
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
-$selectedGenres = isset($_GET['genres']) && is_array($_GET['genres']) ? array_map('intval', $_GET['genres']) : [];
-$priceFilter = isset($_GET['price_filter']) ? $_GET['price_filter'] : '';
 
-// Bangun WHERE clause dinamis
-$whereParts = [];
+$whereClause = '';
 
 if ($search !== '') {
     $searchEsc = mysqli_real_escape_string($conn, $search);
-    $whereParts[] = "(
+    $whereClause = "WHERE (
         name LIKE '%$searchEsc%' OR 
         developer LIKE '%$searchEsc%' OR 
         publisher LIKE '%$searchEsc%' OR 
-        release_year LIKE '%$searchEsc%' OR 
-        min_spec LIKE '%$searchEsc%' OR 
-        rec_spec LIKE '%$searchEsc%'
+        release_year LIKE '%$searchEsc%'
     )";
-}
-
-
-
-if (count($selectedGenres) > 0) {
-    $genreIdsStr = implode(',', $selectedGenres);
-    $countGenres = count($selectedGenres);
-
-    $whereParts[] = "id IN (
-        SELECT game_id FROM game_genres 
-        WHERE genre_id IN ($genreIdsStr)
-        GROUP BY game_id
-        HAVING COUNT(DISTINCT genre_id) = $countGenres
-    )";
-}
-
-if ($priceFilter !== '') {
-    switch ($priceFilter) {
-        case 'lt100000':
-            $whereParts[] = "(epic_price < 100000 OR steam_price < 100000)";
-            break;
-        case 'gt100000':
-            $whereParts[] = "(epic_price > 100000 OR steam_price > 100000)";
-            break;
-        case 'gt250000':
-            $whereParts[] = "(epic_price > 250000 OR steam_price > 250000)";
-            break;
-        case 'gt500000':
-            $whereParts[] = "(epic_price > 500000 OR steam_price > 500000)";
-            break;
-    }
-}
-
-$whereClause = '';
-if (count($whereParts) > 0) {
-    $whereClause = "WHERE " . implode(' AND ', $whereParts);
 }
 
 $sql = "SELECT * FROM games $whereClause ORDER BY id DESC";
 $result = mysqli_query($conn, $sql);
 
+// Ambil statistik
+$totalGames = mysqli_num_rows(mysqli_query($conn, "SELECT id FROM games"));
+$totalDevelopers = mysqli_num_rows(mysqli_query($conn, "SELECT DISTINCT developer FROM games"));
+$totalPublishers = mysqli_num_rows(mysqli_query($conn, "SELECT DISTINCT publisher FROM games"));
+$latestYearRes = mysqli_query($conn, "SELECT MAX(release_year) AS latest_year FROM games");
+$latestYear = mysqli_fetch_assoc($latestYearRes)['latest_year'] ?? 0;
+
+
+
+
+// Pagination
+$itemsPerPage = 10;
+$currentPage = isset($_GET['page']) && is_numeric($_GET['page']) && $_GET['page'] > 0 
+    ? (int)$_GET['page'] : 1;
+
+// Hitung total data dengan filter yang sama
+$totalItemsSql = "SELECT COUNT(*) as total FROM games $whereClause";
+$totalItemsResult = mysqli_query($conn, $totalItemsSql);
+$totalItems = mysqli_fetch_assoc($totalItemsResult)['total'] ?? 0;
+
+// Hitung total halaman
+$totalPages = ceil($totalItems / $itemsPerPage);
+
+// Hitung offset untuk LIMIT
+$offset = ($currentPage - 1) * $itemsPerPage;
+
+// Query data dengan LIMIT dan OFFSET
+$sql = "SELECT * FROM games $whereClause ORDER BY id DESC LIMIT $offset, $itemsPerPage";
+$result = mysqli_query($conn, $sql);
+
 ?>
+
 
 <!DOCTYPE html>
 <html lang="id">
 <head>
-<meta charset="UTF-8" />
-<title>Admin Panel - Manajemen Game</title>
-<style>
-    body {
-        font-family: Arial, sans-serif;
-        background-color: #f4f6f8;
-    }
-    .container {
-        max-width: 1000px;
-        margin: 20px auto;
-        background: white;
-        padding: 25px;
-        border-radius: 8px;
-        box-shadow: 0 0 10px rgba(0,0,0,0.1);
-    }
-    h1 {
-        text-align: center;
-        color: #333;
-    }
-    .filter-group {
-        margin-bottom: 20px;
-        display: flex;
-        gap: 15px;
-        align-items: center;
-        flex-wrap: wrap;
-    }
-    input[type=text] {
-        padding: 8px;
-        width: 250px;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-    }
-    select {
-        padding: 8px;
-        border-radius: 4px;
-        border: 1px solid #ccc;
-    }
-    button, a.reset-btn {
-        background-color: #007bff;
-        color: white;
-        border: none;
-        padding: 9px 15px;
-        border-radius: 4px;
-        cursor: pointer;
-        text-decoration: none;
-        font-size: 14px;
-    }
-    button:hover, a.reset-btn:hover {
-        background-color: #0056b3;
-    }
-
-    /* Dropdown Checkbox Styles */
-    .dropdown-checkbox {
-        position: relative;
-        display: inline-block;
-        user-select: none;
-    }
-    .dropdown-checkbox .dropbtn {
-        padding: 8px 12px;
-        font-size: 14px;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        background-color: white;
-        cursor: pointer;
-        min-width: 150px;
-        text-align: left;
-    }
-    .dropdown-checkbox .dropbtn:after {
-        content: ' ▼';
-        font-size: 10px;
-    }
-    .dropdown-checkbox-content {
-        display: none;
-        position: absolute;
-        background-color: white;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        max-height: 180px;
-        overflow-y: auto;
-        width: 220px;
-        z-index: 1000;
-        padding: 8px;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-    }
-    .dropdown-checkbox-content label {
-        display: block;
-        margin-bottom: 6px;
-        cursor: pointer;
-        font-size: 14px;
-    }
-    .dropdown-checkbox-content label:hover {
-        background-color: #f1f1f1;
-    }
-    .dropdown-checkbox.open .dropdown-checkbox-content {
-        display: block;
-    }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - GameHub</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://indgamehub.rf.gd/css/admin_panel_style.css">
 </head>
 <body>
-<div class="container">
-    <h1>Admin Panel - Manajemen Game</h1>
 
-    <form method="GET" action="" id="filterForm">
-        <div class="filter-group">
-            <input type="text" name="search" placeholder="Cari nama, developer, publisher" value="<?= htmlspecialchars($search) ?>" />
+    
+    <div class="main-content">
+        <div class="admin-header">
+            <h1 class="admin-title">
+                <a href="<?= $_SERVER['PHP_SELF'] ?>" text-decoration: none;>
+                <i class="fas fa-cog"></i>
+                Admin Panel</a>
+            </h1>
+            <p class="admin-subtitle">Manage your game library</p>
+        </div>
 
-            <!-- Dropdown checkbox genre -->
-            <div class="dropdown-checkbox" id="genreDropdown">
-                <div class="dropbtn">Pilih Genre</div>
-                <div class="dropdown-checkbox-content">
-                    <?php
-                    // Reset pointer genreResult sebelum loop
-                    mysqli_data_seek($genreResult, 0);
-                    while ($genre = mysqli_fetch_assoc($genreResult)): ?>
-                        <label>
-                            <input type="checkbox" name="genres[]" value="<?= $genre['id'] ?>" <?= in_array($genre['id'], $selectedGenres) ? 'checked' : '' ?> />
-                            <?= htmlspecialchars($genre['name']) ?>
-                        </label>
-                    <?php endwhile; ?>
+        <div class="admin-panel">
+            <!-- Stats Cards -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number" id="totalGames"><?= $totalGames ?></div>
+                    <div class="stat-label">Total Games</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="totalDevelopers"><?= $totalDevelopers ?></div>
+                    <div class="stat-label">Developers</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="totalPublishers"><?= $totalPublishers ?></div>
+                    <div class="stat-label">Publishers</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="latestYear"><?= $latestYear ?></div>
+                    <div class="stat-label">Latest Release</div>
                 </div>
             </div>
 
-            <!-- Dropdown harga -->
-            <select name="price_filter">
-                <option value="">Filter Harga</option>
-                <option value="lt100000" <?= $priceFilter == 'lt100000' ? 'selected' : '' ?>>Harga < Rp.100,000</option>
-                <option value="gt100000" <?= $priceFilter == 'gt100000' ? 'selected' : '' ?>>Harga > Rp.100,000</option>
-                <option value="gt250000" <?= $priceFilter == 'gt250000' ? 'selected' : '' ?>>Harga > Rp.250,000</option>
-                <option value="gt500000" <?= $priceFilter == 'gt500000' ? 'selected' : '' ?>>Harga > Rp.500,000</option>
-            </select>
+            <!-- Controls -->
+            <div class="admin-controls">
+                <a href="https://indgamehub.rf.gd/admin/admin_add_game.php" class="add-game-btn">
+                    <i class="fas fa-plus"></i>
+                    Add New Game
+                </a>
+                <form method="get">
+                <div class="search-container">
+                    <input type="text" class="search-input" name="search" placeholder="Search games..." id="searchInput" autocomplete="off" value="<?= htmlspecialchars($search) ?>" />
+                    <i class="fas fa-search search-icon"></i>
+                </div>
+                </form>
+            </div>
 
-            <button type="submit">Filter</button>
-            <a href="admin_panel.php" class="reset-btn">Reset</a>
+            <!-- Games Table -->
+            <div class="table-container">
+                <table class="games-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Cover</th>
+                            <th>Game Title</th>
+                            <th>Developer</th>
+                            <th>Publisher</th>
+                            <th>Release Year</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="gamesTableBody">
+                        <?php if (mysqli_num_rows($result) === 0): ?>
+                            <tr>
+                                <td colspan="7" class="empty-state"><i class="fas fa-gamepad"></i> No games found</td>
+                            </tr>
+                        <?php else: ?>
+                            <?php while ($game = mysqli_fetch_assoc($result)): ?>
+                                <tr>
+                                    <td><?= $game['id'] ?></td>
+                                    <td>
+                                        <?php if (!empty($game['cover'])): ?>
+                                            <a href="https://indgamehub.rf.gd/gamepage.php?id=<?= $game['id'] ?>">
+                                                <img src="<?= htmlspecialchars($game['cover']) ?>" alt="<?= htmlspecialchars($game['name']) ?>" class="game-cover">
+                                            </a>
+                                        <?php else: ?>
+                                            <div class="cover-placeholder"><i class="fas fa-image"></i></div>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><div class="game-title"><?= htmlspecialchars($game['name']) ?></div></td>
+                                    <td><div class="game-meta"><?= htmlspecialchars($game['developer']) ?></div></td>
+                                    <td><div class="game-meta"><?= htmlspecialchars($game['publisher']) ?></div></td>
+                                    <td><div class="game-meta"><?= htmlspecialchars($game['release_year']) ?></div></td>
+                                    <td>
+                                        <div class="action-buttons">
+                                            <a href="https://indgamehub.rf.gd/admin/admin_edit_game.php?id=<?= $game['id'] ?>" class="btn btn-edit">
+                                                <i class="fas fa-edit"></i>
+                                                Edit
+                                            </a>
+                                            <a href="https://indgamehub.rf.gd/admin/admin_delete_game.php?id=<?= $game['id'] ?>" class="btn btn-delete" onclick="return confirm('Yakin ingin menghapus game ini?');">
+                                                <i class="fas fa-trash"></i>
+                                                Delete
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                            <?php endwhile; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            <div class="pagination" id="pagination">
+                <?php if ($totalPages > 1): ?>
+                    <!-- Previous Page -->
+                    <?php if ($currentPage > 1): ?>
+                        <a href="?search=<?= urlencode($search) ?>&page=<?= $currentPage - 1 ?>" class="pagination-btn active">&laquo; Prev</a>
+                    <?php else: ?>
+                        <span class="pagination-btn disabled">&laquo; Prev</span>
+                    <?php endif; ?>
+
+                    <!-- Pages Numbers -->
+                    <?php
+                    // Batas range halaman yang ditampilkan
+                    $range = 3; // contoh, 3 halaman sebelum dan sesudah
+
+                    for ($i = max(1, $currentPage - $range); $i <= min($totalPages, $currentPage + $range); $i++): ?>
+                        <?php if ($i == $currentPage): ?>
+                            <span class="pagination-btn"><?= $i ?></span>
+                        <?php else: ?>
+                            <a href="?search=<?= urlencode($search) ?>&page=<?= $i ?>" class="pagination-btn <?= ($i == $currentPage) ? 'active' : '' ?>"><?= $i ?></a>
+                        <?php endif; ?>
+                    <?php endfor; ?>
+
+                    <!-- Next Page -->
+                    <?php if ($currentPage < $totalPages): ?>
+                        <a href="?search=<?= urlencode($search) ?>&page=<?= $currentPage + 1 ?>" class="pagination-btn active">Next &raquo;</a>
+                    <?php else: ?>
+                        <span class="pagination-btn disabled">Next &raquo;</span>
+                    <?php endif; ?>
+                <?php endif; ?>
+            </div>
+
         </div>
-    </form>
+    </div>
 
-    <a class="add-button" href="admin_add_game.php" style="background-color:#28a745; color:#fff; padding:10px 15px; border-radius:4px; text-decoration:none;">+ Tambah Game Baru</a>
-
-    <table style="width:100%; border-collapse:collapse; margin-top:15px;">
-        <thead>
-            <tr style="background:#007bff; color:#fff;">
-                <th style="padding:12px; text-align:left;">ID</th>
-                <th style="padding:12px; text-align:left;">Nama Game</th>
-                <th style="padding:12px; text-align:left;">Developer</th>
-                <th style="padding:12px; text-align:left;">Publisher</th>
-                <th style="padding:12px; text-align:left;">Tahun Rilis</th>
-                <th style="padding:12px; text-align:left;">Aksi</th>
-            </tr>
-        </thead>
-        <tbody>
-        <?php if ($result && mysqli_num_rows($result) > 0): ?>
-            <?php while ($game = mysqli_fetch_assoc($result)): ?>
-                <tr style="border-bottom:1px solid #ddd;">
-                    <td style="padding:12px;"><?= $game['id'] ?></td>
-                    <td style="padding:12px;"><?= htmlspecialchars($game['name']) ?></td>
-                    <td style="padding:12px;"><?= htmlspecialchars($game['developer']) ?></td>
-                    <td style="padding:12px;"><?= htmlspecialchars($game['publisher']) ?></td>
-                    <td style="padding:12px;"><?= htmlspecialchars($game['release_year']) ?></td>
-                    <td style="padding:12px;">
-                        <a href="admin_edit_game.php?id=<?= $game['id'] ?>">Edit</a> | 
-                        <a href="admin_delete_game.php?id=<?= $game['id'] ?>" onclick="return confirm('Yakin ingin hapus game ini?');">Hapus</a>
-                    </td>
-                </tr>
-            <?php endwhile; ?>
-        <?php else: ?>
-            <tr><td colspan="6" style="padding:15px; text-align:center;">Tidak ada data game ditemukan.</td></tr>
-        <?php endif; ?>
-        </tbody>
-    </table>
-</div>
-
-<script>
-    // Toggle dropdown checkbox open/close
-    document.getElementById('genreDropdown').querySelector('.dropbtn').addEventListener('click', function(e){
-        e.stopPropagation();
-        this.parentElement.classList.toggle('open');
-    });
-
-    // Agar klik checkbox tidak menutup dropdown
-    document.querySelectorAll('#genreDropdown input[type=checkbox]').forEach(checkbox => {
-        checkbox.addEventListener('click', function(e) {
-            e.stopPropagation();
-        });
-    });
-
-    // Agar klik label teks juga tidak menutup dropdown
-    document.querySelectorAll('#genreDropdown label').forEach(label => {
-        label.addEventListener('click', function(e) {
-            e.stopPropagation();
-        });
-    });
-
-    // Tutup dropdown jika klik di luar
-    window.addEventListener('click', function(){
-        document.getElementById('genreDropdown').classList.remove('open');
-    });
-</script>
 </body>
 </html>
+<?php ob_end_flush(); ?>
