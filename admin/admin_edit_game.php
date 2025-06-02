@@ -5,12 +5,13 @@ if (session_status() === PHP_SESSION_NONE) {
 
 // Proteksi akses: hanya admin
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
-    header("Location: /gamehub/auth/login.php");
+    header("Location: https://indgamehub.rf.gd/auth/login.php");
     exit;
 }
 
 include('../includes/database.php');
 include('../includes/navbar.php');
+
 
 $error = '';
 $success = '';
@@ -18,7 +19,8 @@ $success = '';
 // Validasi ID
 $id = filter_input(INPUT_GET, 'id', FILTER_VALIDATE_INT);
 if (!$id) {
-    die('ID game tidak valid.');
+    header("Location: https://indgamehub.rf.gd/index.php");
+    exit;
 }
 
 // Ambil data game berdasarkan ID
@@ -30,7 +32,8 @@ $result = mysqli_stmt_get_result($stmt);
 $game = mysqli_fetch_assoc($result);
 
 if (!$game) {
-    die('Game tidak ditemukan.'); // ATUR NANTIIII!!!
+    header("Location: https://indgamehub.rf.gd/index.php");
+    exit;
 }
 
 mysqli_stmt_close($stmt);
@@ -42,10 +45,9 @@ $publisher = $game['publisher'];
 $release_year = $game['release_year'];
 $min_spec = $game['min_spec'];
 $rec_spec = $game['rec_spec'];
-$steam_price = $game['steam_price'];
-$epic_price = $game['epic_price'];
 $steam_link = $game['steam_link'];
-$epic_link = $game['epic_link'];
+$alt_link = $game['alt_link'];
+$cover = $game['cover'];
 $screenshot1 = $game['screenshot1'];
 $screenshot2 = $game['screenshot2'];
 $screenshot3 = $game['screenshot3'];
@@ -101,14 +103,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $developer = $developer === '' ? null : $developer;
     $publisher = trim(filter_input(INPUT_POST, 'publisher', FILTER_SANITIZE_SPECIAL_CHARS));
     $publisher = $publisher === '' ? null : $publisher;
-    $min_spec = trim(filter_input(INPUT_POST, 'min_spec', FILTER_SANITIZE_SPECIAL_CHARS)) ?: '';
-    $rec_spec = trim(filter_input(INPUT_POST, 'rec_spec', FILTER_SANITIZE_SPECIAL_CHARS)) ?: '';
+    
+    $minSpecText = $_POST['min_spec'];
+    $recSpecText = $_POST['rec_spec'];
+
     $steam_link = trim(filter_input(INPUT_POST, 'steam_link', FILTER_SANITIZE_URL)) ?: '';
-    $epic_link = trim(filter_input(INPUT_POST, 'epic_link', FILTER_SANITIZE_URL)) ?: '';
+    $alt_link = trim(filter_input(INPUT_POST, 'alt_link', FILTER_SANITIZE_URL)) ?: '';
 
     $release_year = filter_input(INPUT_POST, 'release_year', FILTER_VALIDATE_INT);
-    $steam_price = filter_input(INPUT_POST, 'steam_price', FILTER_VALIDATE_FLOAT);
-    $epic_price = filter_input(INPUT_POST, 'epic_price', FILTER_VALIDATE_FLOAT);
 
     $selected_genres = isset($_POST['genres']) ? array_map('intval', $_POST['genres']) : [];
 
@@ -121,55 +123,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $old_screenshot1 = $screenshot1;
     $old_screenshot2 = $screenshot2;
     $old_screenshot3 = $screenshot3;
+    $old_cover = $cover;
 
     // Jalankan fungsi upload, hasilnya bisa null jika tidak ada upload baru
     $new_screenshot1 = handle_screenshot_upload('screenshot1', $old_screenshot1);
     $new_screenshot2 = handle_screenshot_upload('screenshot2', $old_screenshot2);
     $new_screenshot3 = handle_screenshot_upload('screenshot3', $old_screenshot3);
+    $new_cover = handle_screenshot_upload('cover', $old_cover);
 
     // Jika tidak ada file baru, gunakan nilai lama
     $screenshot1 = $new_screenshot1 !== null ? $new_screenshot1 : $old_screenshot1;
     $screenshot2 = $new_screenshot2 !== null ? $new_screenshot2 : $old_screenshot2;
     $screenshot3 = $new_screenshot3 !== null ? $new_screenshot3 : $old_screenshot3;
+    $cover = $new_cover !== null ? $new_cover : $old_cover;
 
     // Validasi logika
     if (!$name || strlen($name) < 3) {
         $error = 'Nama game wajib diisi minimal 3 karakter.';
-    } elseif ($release_year !== false && ($release_year < 1970 || $release_year > date('Y'))) {
+    } elseif (!$release_year || $release_year < 1970 || $release_year > date('Y')) {
         $error = 'Tahun rilis tidak valid.';
-    } elseif ($steam_price !== false && $steam_price < 0) {
-        $error = 'Harga Steam harus ada atau Free (0.0).';
-    } elseif ($epic_price !== false && $epic_price < 0) {
-        $error = 'Harga Epic Games harus ada atau Free (0.0).';
+    } elseif (!$developer || strlen($developer) < 2) {
+        $error = 'Developer wajib diisi.';
+    } elseif (!$publisher || strlen($publisher) < 2) {
+        $error = 'Publisher wajib diisi.';
+    } elseif (!is_array($selected_genres) || count($selected_genres) === 0) {
+        $error = 'Minimal pilih 1 genre.';
+    } elseif (!is_array(json_decode($minSpecText, true))) {
+        $error = 'Format Minimum Spec tidak valid (harus JSON).';
+    } elseif (!is_array(json_decode($recSpecText, true))) {
+        $error = 'Format Recommended Spec tidak valid (harus JSON).';
     } elseif ($steam_link && !filter_var($steam_link, FILTER_VALIDATE_URL)) {
         $error = 'Link Steam tidak valid.';
-    } elseif ($epic_link && !filter_var($epic_link, FILTER_VALIDATE_URL)) {
+    } elseif ($alt_link && !filter_var($alt_link, FILTER_VALIDATE_URL)) {
         $error = 'Link Epic Games tidak valid.';
+    } elseif (!isset($cover)){
+        $error = 'Cover harus berupa file gambar yang valid.';
     }
+
 
     // Jika valid dan tidak ada error upload
     if ($error === '') {
+        $min_spec = json_encode(json_decode($minSpecText, true));
+        $rec_spec = json_encode(json_decode($recSpecText, true));
         $sql_update = "UPDATE games SET 
             name = ?, developer = ?, publisher = ?, release_year = ?, 
-            min_spec = ?, rec_spec = ?, steam_price = ?, epic_price = ?, 
-            steam_link = ?, epic_link = ?, screenshot1 = ?, screenshot2 = ?, screenshot3 = ?
+            min_spec = ?, rec_spec = ?, steam_link = ?, alt_link = ?, cover = ?,
+            screenshot1 = ?, screenshot2 = ?, screenshot3 = ?
             WHERE id = ?";
 
         $stmt_update = mysqli_prepare($conn, $sql_update);
 
         mysqli_stmt_bind_param(
             $stmt_update,
-            "sssissddsssssi",
+            "sssissssssssi",
             $name,
             $developer,
             $publisher,
             $release_year,
             $min_spec,
             $rec_spec,
-            $steam_price,
-            $epic_price,
             $steam_link,
-            $epic_link,
+            $alt_link,
+            $cover,
             $screenshot1,
             $screenshot2,
             $screenshot3,
@@ -189,7 +204,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $success = "Berhasil mengupdate data";
             // mysqli_stmt_close($stmt_update);
             // mysqli_close($conn);
-            // header("Location: /gamehub/admin/admin_panel.php");
+            // header("Location: https://indgamehub.rf.gd/admin/admin_panel.php");
             // exit;
         } else {
             $error = "Gagal memperbarui data: " . mysqli_error($conn);
@@ -203,226 +218,259 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8" />
-    <title>Edit Game</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f9f9f9;
-        }
-
-        .container {
-            max-width: 800px;
-            margin: auto;
-            background-color: #fff;
-            border: 1px solid #ddd;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.05);
-        }
-
-        h1 {
-            font-size: 24px;
-            margin-bottom: 25px;
-            color: #333;
-        }
-
-        label {
-            display: block;
-            margin-top: 15px;
-            font-weight: bold;
-            color: #555;
-        }
-
-        input[type="text"],
-        input[type="number"],
-        input[type="url"],
-        textarea {
-            width: 100%;
-            padding: 10px;
-            margin-top: 5px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            box-sizing: border-box;
-        }
-
-        textarea {
-            resize: vertical;
-            min-height: 60px;
-        }
-
-        input[type="file"] {
-            margin-top: 10px;
-        }
-
-        #back{
-            display: inline-block;
-            padding: 15px 16px;
-            margin-top: 15px;
-            background-color: #6c757d;
-            color: white;
-            text-decoration: none;
-            border-radius: 5px;
-            line-height: 1;
-            user-select: none;
-        }
-
-        button[type="submit"] {
-            margin-top: 25px;
-            background-color: #28a745;
-            color: white;
-            padding: 12px 20px;
-            border: none;
-            border-radius: 5px;
-            font-size: 16px;
-            cursor: pointer;
-        }
-
-        button[type="submit"]:hover {
-            background-color: #218838;
-        }
-        .alert-error {
-            color: #721c24;
-            background-color: #f8d7da;
-            padding: 10px;
-            border: 1px solid #f5c6cb;
-            border-radius: 5px;
-            margin-bottom: 20px;
-        }
-
-        .alert-success {
-            color: #155724;
-            background-color: #d4edda;
-            padding: 10px;
-            border: 1px solid #c3e6cb;
-            border-radius: 5px;
-            margin-bottom: 20px;
-        }
-
-        /* Flexbox for screenshot preview */
-        .screenshot-grid {
-            display: flex;
-            justify-content: space-between;
-            gap: 20px;
-            margin-top: 10px;
-            margin-bottom: 20px;
-        }
-
-        .screenshot-col {
-            flex: 1;
-            text-align: center;
-        }
-
-        .screenshot-col img {
-            max-width: 100%;
-            max-height: 120px;
-            display: block;
-            margin: 0 auto 10px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-        }
-        .genre-list { margin-top: 8px; }
-        .genre-list label { font-weight: normal; display: inline-block; margin-right: 12px; }
-        .genre-list {display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 8px;}
-        .genre-list label {font-weight: normal; display: flex; align-items: center; gap: 6px; background-color: #f1f1f1; padding: 6px 10px; border-radius: 4px; cursor: pointer; transition: background-color 0.2s ease;}
-        .genre-list label:hover {background-color: #e0e0e0;}
-    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Game <?php echo htmlspecialchars($name ?? 'Game'); ?> - GameHub</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://indgamehub.rf.gd/css/admin_edit_style.css">
 </head>
 <body>
+    
+    <div class="main-content">
+        <div class="form-container">
+            <div class="form-header">
+                <div class="form-icon">
+                    <i class="fas fa-edit"></i>
+                </div>
+                <h1 class="form-title">Edit Game</h1>
+                <p class="form-subtitle">Update <a class="game-name" href="https://indgamehub.rf.gd/gamepage.php?id=<?= htmlspecialchars($game['id']) ?>"><?php echo htmlspecialchars($name ?? 'Game'); ?></a> information</p>
+            </div>
 
-<div class="container">
-    <h1>Edit Game: <?php echo htmlspecialchars($name); ?></h1>
+            <a href="https://indgamehub.rf.gd/admin/admin_panel.php" class="back-link">
+                <i class="fas fa-arrow-left"></i>
+                Back to Admin Panel
+            </a>
 
-    <?php if ($error): ?>
-        <div class="alert-error"><?php echo $error; ?></div>
-    <?php elseif ($success): ?>
-        <div class="alert-success"><?php echo $success; ?></div>
-    <?php endif; ?>
+            <?php if ($error ?? false): ?>
+                <div class="alert alert-error">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <?php echo $error; ?>
+                </div>
+            <?php elseif ($success ?? false): ?>
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle"></i>
+                    <?php echo $success; ?>
+                </div>
+            <?php endif; ?>
 
-    <form action="" method="post" enctype="multipart/form-data">
-        <label>Nama Game: 
-            <input type="text" name="name" value="<?php echo htmlspecialchars($name); ?>" required>
-        </label>
+            <form action="" method="post" enctype="multipart/form-data" id="editGameForm">
+                <div class="form-grid">
+                    <!-- Basic Information -->
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>
+                                <i class="fas fa-gamepad"></i>
+                                Game Name <span class="required">*</span>
+                            </label>
+                            <input type="text" name="name" autocomplete="off" value="<?php echo htmlspecialchars($name ?? ''); ?>" placeholder="Enter game name" required>
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                <i class="fas fa-calendar"></i>
+                                Release Year <span class="required">*</span>
+                            </label>
+                            <input type="number" name="release_year" autocomplete="off" value="<?php echo htmlspecialchars($release_year ?? ''); ?>" placeholder="2024" min="1970" max="2030">
+                        </div>
+                    </div>
 
-        <label>Developer: 
-            <input type="text" name="developer" value="<?php echo htmlspecialchars($developer); ?>">
-        </label>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>
+                                <i class="fas fa-code"></i>
+                                Developer <span class="required">*</span>
+                            </label>
+                            <input type="text" name="developer" autocomplete="off" value="<?php echo htmlspecialchars($developer ?? ''); ?>" placeholder="Game developer">
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                <i class="fas fa-building"></i>
+                                Publisher <span class="required">*</span>
+                            </label>
+                            <input type="text" name="publisher" autocomplete="off" value="<?php echo htmlspecialchars($publisher ?? ''); ?>" placeholder="Game publisher">
+                        </div>
+                    </div>
 
-        <label>Publisher: 
-            <input type="text" name="publisher" value="<?php echo htmlspecialchars($publisher); ?>">
-        </label>
+                    <!-- Genre Selection -->
+                    <div class="form-group full-width">
+                        <label>
+                            <i class="fas fa-tags"></i>
+                            Genres <span class="required">*</span>
+                        </label>
+                        <div class="genre-list">
+                            <?php 
+                            // Sample genres - replace with actual database data
+                            $genre_list = $genre_list ?? [
+                                ['id' => 1, 'name' => 'Action'],
+                                ['id' => 2, 'name' => 'Adventure'],
+                                ['id' => 3, 'name' => 'RPG'],
+                                ['id' => 4, 'name' => 'Strategy'],
+                                ['id' => 5, 'name' => 'Simulation'],
+                                ['id' => 6, 'name' => 'Sports'],
+                                ['id' => 7, 'name' => 'Racing'],
+                                ['id' => 8, 'name' => 'Puzzle']
+                            ];
+                            
+                            $current_genre_ids = $current_genre_ids ?? [];
+                            
+                            foreach ($genre_list as $genre): ?>
+                                <div class="genre-item">
+                                    <input type="checkbox" name="genres[]" value="<?= $genre['id']; ?>" id="genre_<?= $genre['id']; ?>"
+                                        <?= in_array($genre['id'], $current_genre_ids) ? 'checked' : '' ?>>
+                                    <label for="genre_<?= $genre['id']; ?>"><?= htmlspecialchars($genre['name']); ?></label>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                     <!-- Store Links -->
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>
+                                <i class="fab fa-steam"></i>
+                                Steam Link <span class="required">*</span>
+                            </label>
+                            <input type="url" name="steam_link" autocomplete="off" value="<?php echo htmlspecialchars($steam_link ?? ''); ?>" placeholder="https://store.steampowered.com/app/...">
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                <i class="fas fa-store"></i>
+                                Alternative Link <span class="required">*</span>
+                            </label>
+                            <input type="url" name="alt_link" autocomplete="off" value="<?= htmlspecialchars($alt_link ?? ''); ?>" placeholder="https://store.epicgames.com/...">
+                        </div>
+                    </div>
 
-        <div class="genre-list">
-                <?php foreach ($genre_list as $genre): ?>
-                    <label>
-                        <input type="checkbox" name="genres[]" value="<?= $genre['id']; ?>"
-                            <?= in_array($genre['id'], $current_genre_ids) ? 'checked' : '' ?>>
-                        <?= htmlspecialchars($genre['name']); ?>
-                    </label><br>
-                <?php endforeach; ?>
+                    <!-- System Requirements -->
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>
+                                <i class="fas fa-microchip"></i>
+                                Minimum Specifications <span class="required">*</span>
+                            </label>
+                            <textarea name="min_spec" autocomplete="off" placeholder="Enter minimum system requirements..."><?php echo htmlspecialchars($min_spec ?? ''); ?></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                <i class="fas fa-rocket"></i>
+                                Recommended Specifications <span class="required">*</span>
+                            </label>
+                            <textarea name="rec_spec" autocomplete="off" placeholder="Enter recommended system requirements..."><?php echo htmlspecialchars($rec_spec ?? ''); ?></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Cover Image -->
+                    <div class="form-group full-width">
+                        <label>
+                            <i class="fas fa-image"></i>
+                            Game Cover (Min. 700<sub>x</sub>700 / Max. 1200<sub>x</sub>1200)<span class="required">*</span>
+                        </label>
+                        <div class="cover-section">
+                            <div class="cover-preview">
+                                <?php if (!empty($cover)): ?>
+                                    <img src="<?php echo htmlspecialchars($cover); ?>" alt="Current Cover">
+                                <?php else: ?>
+                                    <div class="no-image">
+                                        <i class="fas fa-image"></i>
+                                        <span style="margin-left: 0.5rem;">No cover image</span>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                            <input type="file" name="cover" accept="image/*">
+                        </div>
+                    </div>
+
+                    <!-- Screenshots -->
+                    <div class="form-group full-width">
+                        <label>
+                            <i class="fas fa-camera"></i>
+                            Screenshots
+                        </label>
+                        <div class="screenshot-grid">
+                            <!-- Screenshot 1 -->
+                            <div class="screenshot-col">
+                                <div class="screenshot-preview">
+                                    <?php if (!empty($screenshot1)): ?>
+                                        <img src="<?php echo htmlspecialchars($screenshot1); ?>" alt="Screenshot 1">
+                                    <?php else: ?>
+                                        <div class="no-image">
+                                            <i class="fas fa-camera"></i>
+                                            <span style="margin-left: 0.5rem;">No screenshot</span>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+                                <input type="file" name="screenshot1" accept="image/*">
+                            </div>
+
+                            <!-- Screenshot 2 -->
+                            <div class="screenshot-col">
+                                <div class="screenshot-preview">
+                                    <?php if (!empty($screenshot2)): ?>
+                                        <img src="<?php echo htmlspecialchars($screenshot2); ?>" alt="Screenshot 2">
+                                    <?php else: ?>
+                                        <div class="no-image">
+                                            <i class="fas fa-camera"></i>
+                                            <span style="margin-left: 0.5rem;">No screenshot</span>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+                                <input type="file" name="screenshot2" accept="image/*">
+                            </div>
+
+                            <!-- Screenshot 3 -->
+                            <div class="screenshot-col">
+                                <div class="screenshot-preview">
+                                    <?php if (!empty($screenshot3)): ?>
+                                        <img src="<?php echo htmlspecialchars($screenshot3); ?>" alt="Screenshot 3">
+                                    <?php else: ?>
+                                        <div class="no-image">
+                                            <i class="fas fa-camera"></i>
+                                            <span style="margin-left: 0.5rem;">No screenshot</span>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+                                <input type="file" name="screenshot3" accept="image/*">
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="submit-btn">
+                        <i class="fas fa-save"></i>
+                        Update Game
+                    </button>
+                </div>
+            </form>
         </div>
+    </div>
 
-        <label>Tahun Rilis: 
-            <input type="number" name="release_year" value="<?php echo htmlspecialchars($release_year); ?>">
-        </label>
+    <script>
+        // Form submission with loading state
+        document.getElementById('editGameForm').addEventListener('submit', function() {
+            const form = this;
+            const submitBtn = form.querySelector('.submit-btn');
+            
+            form.classList.add('loading');
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating Game...';
+        });
 
-        <label>Minimum Spec: 
-            <textarea name="min_spec"><?php echo htmlspecialchars($min_spec); ?></textarea>
-        </label>
-
-        <label>Recommended Spec: 
-            <textarea name="rec_spec"><?php echo htmlspecialchars($rec_spec); ?></textarea>
-        </label>
-
-        <label>Harga Steam: 
-            <input type="number" step="0.01" name="steam_price" value="<?php echo htmlspecialchars($steam_price); ?>">
-        </label>
-
-        <label>Harga Epic Games: 
-            <input type="number" step="0.01" name="epic_price" value="<?php echo htmlspecialchars($epic_price); ?>">
-        </label>
-
-        <label>Link Steam: 
-            <input type="url" name="steam_link" value="<?php echo htmlspecialchars($steam_link); ?>">
-        </label>
-
-        <label>Link Epic Games: 
-            <input type="url" name="epic_link" value="<?php echo htmlspecialchars($epic_link); ?>">
-        </label>
-
-        <label>Screenshots:</label>
-        <div class="screenshot-grid">
-            <!-- Screenshot 1 -->
-            <div class="screenshot-col">
-                <?php if (!empty($screenshot1)): ?>
-                    <img src="<?php echo htmlspecialchars($screenshot1); ?>" alt="Screenshot 1">
-                <?php endif; ?>
-                <input type="file" name="screenshot1" accept="image/*">
-            </div>
-
-            <!-- Screenshot 2 -->
-            <div class="screenshot-col">
-                <?php if (!empty($screenshot2)): ?>
-                    <img src="<?php echo htmlspecialchars($screenshot2); ?>" alt="Screenshot 2">
-                <?php endif; ?>
-                <input type="file" name="screenshot2" accept="image/*">
-            </div>
-
-            <!-- Screenshot 3 -->
-            <div class="screenshot-col">
-                <?php if (!empty($screenshot3)): ?>
-                    <img src="<?php echo htmlspecialchars($screenshot3); ?>" alt="Screenshot 3">
-                <?php endif; ?>
-                <input type="file" name="screenshot3" accept="image/*">
-            </div>
-        </div>
-
-        <button type="submit">Update Game</button>
-        <div style="margin-top: 10px; display: flex; gap: 10px;">
-        <a id="back" href="/gamehub/admin/admin_panel.php">Kembali ke Panel</a>
-
-    </form>
-</div>
-
+        // File input preview enhancement
+        document.querySelectorAll('input[type="file"]').forEach(input => {
+            input.addEventListener('change', function() {
+                if (this.files && this.files[0]) {
+                    const file = this.files[0];
+                    const reader = new FileReader();
+                    
+                    reader.onload = function(e) {
+                        // Find the preview container
+                        const previewContainer = input.parentElement.querySelector('.cover-preview, .screenshot-preview');
+                        if (previewContainer) {
+                            previewContainer.innerHTML = `<img src="${e.target.result}" alt="Preview" style="max-width: 100%; max-height: 200px; border-radius: 0.5rem; border: 2px solid rgba(245, 158, 11, 0.3);">`;
+                        }
+                    };
+                    
+                    reader.readAsDataURL(file);
+                }
+            });
+        });
+    </script>
 </body>
 </html>
