@@ -1,12 +1,12 @@
 <?php
-// Mulai session jika belum dimulai
+ob_start();
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
 // Jika sudah login, redirect ke halaman utama
 if (isset($_SESSION['username'])) {
-    header("Location: /gamehub/index.php");
+    header("Location: https://indgamehub.rf.gd/index.php");
     exit;
 }
 
@@ -61,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             mysqli_stmt_close($stmt);
             mysqli_close($conn);
-            header("Location: /gamehub/index.php");
+            header("Location: https://indgamehub.rf.gd/index.php");
             exit;
         } else {
             $_SESSION['error'] = "Password salah.";
@@ -78,137 +78,86 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8" />
-    <title>Login GameHub</title>
-    <style>
-        body {
-    font-family: Arial, sans-serif;
-    background-color: #f4f6f8; /* warna netral sama seperti navbar */
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-}
-
-.login-container {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background-color: white;
-    padding: 30px 40px;
-    border-radius: 8px;
-    box-shadow: 0 0 15px rgba(0,0,0,0.1);
-    width: 320px;
-}
-
-h2 {
-    margin-bottom: 25px;
-    color: #333;
-    text-align: center;
-    font-weight: 600;
-}
-
-.error-msg {
-    color: #c0392b;
-    background-color: #f8d7da;
-    padding: 10px 15px;
-    border-radius: 5px;
-    margin-bottom: 15px;
-    font-size: 14px;
-    border: 1px solid #f5c6cb;
-}
-
-form {
-    display: flex;
-    flex-direction: column;
-}
-
-label {
-    font-weight: bold;
-    margin-bottom: 5px;
-    color: #555;
-    font-size: 14px;
-}
-
-input[type="text"],
-input[type="password"] {
-    padding: 10px;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-    font-size: 14px;
-    margin-bottom: 20px;
-    transition: border-color 0.2s ease-in-out;
-}
-
-input[type="text"]:focus,
-input[type="password"]:focus {
-    outline: none;
-    border-color: #007bff;
-    box-shadow: 0 0 5px rgba(0,123,255,0.5);
-}
-
-input[type="submit"] {
-    background-color: #007bff;
-    border: none;
-    padding: 12px;
-    color: white;
-    font-weight: 600;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 16px;
-    transition: background-color 0.3s ease;
-}
-
-input[type="submit"]:hover {
-    background-color: #0056b3;
-}
-
-p {
-    text-align: center;
-    margin-top: 20px;
-    font-size: 14px;
-    color: #555;
-}
-
-p a {
-    color: #007bff;
-    text-decoration: none;
-    font-weight: 600;
-    transition: color 0.2s ease;
-}
-
-p a:hover {
-    text-decoration: underline;
-    color: #0056b3;
-}
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - GameHub</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://indgamehub.rf.gd/css/login_style.css">
 </head>
 <body>
     <div class="login-container">
-        <h2>Login</h2>
+        <div class="login-header">
+            <div class="login-icon">
+                <i class="fas fa-gamepad"></i>
+            </div>
+            <h2>Welcome Back</h2>
+            <p class="login-subtitle">Sign in to your GameHub account</p>
+        </div>
 
         <!-- Tampilkan pesan error jika ada -->
         <?php if (!empty($error)): ?>
-            <p class="error-msg"><?= htmlspecialchars($error) ?></p>
+            <div class="error-msg">
+                <i class="fas fa-exclamation-triangle"></i>
+                <?= htmlspecialchars($error) ?>
+            </div>
         <?php endif; ?>
 
         <!-- Form Login -->
-        <form method="post">
-            <label for="username">Username:</label>
-            <input id="username" type="text" name="username" value="<?= htmlspecialchars($username) ?>" required>
+        <form method="post" id="loginForm">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <div class="input-container">
+                    <i class="fas fa-user input-icon"></i>
+                    <input id="username" type="text" autocomplete="off" name="username" value="<?= htmlspecialchars($username ?? '') ?>" placeholder="Enter your username" required>
+                </div>
+            </div>
 
-            <label for="password">Password:</label>
-            <input id="password" type="password" name="password" required>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <div class="input-container">
+                    <i class="fas fa-lock input-icon"></i>
+                    <input id="password" type="password" autocomplete="off" name="password" placeholder="Enter your password" required>
+                </div>
+            </div>
 
-            <input type="submit" value="Login">
+            <input type="submit" value="Sign In" id="submitBtn">
         </form>
 
-        <p><a href="/gamehub/auth/register.php">Belum punya akun? Daftar</a></p>
+        <div class="register-link">
+            <p>Don't have an account?</p>
+            <a href="https://indgamehub.rf.gd/auth/register.php">
+                <i class="fas fa-user-plus"></i>
+                Create Account
+            </a>
+        </div>
     </div>
+
+    <script>
+        // Add loading state on form submission
+        document.getElementById('loginForm').addEventListener('submit', function() {
+            const form = this;
+            const submitBtn = document.getElementById('submitBtn');
+            
+            form.classList.add('loading');
+            submitBtn.value = 'Signing In...';
+        });
+
+        // Add enter key support
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                document.getElementById('loginForm').submit();
+            }
+        });
+
+        // Focus first input on load
+        window.addEventListener('load', function() {
+            document.getElementById('username').focus();
+        });
+    </script>
 </body>
 </html>
-
+<?php ob_end_flush(); ?>
