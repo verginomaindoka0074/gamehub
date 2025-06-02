@@ -3,20 +3,23 @@ if (session_status() === PHP_SESSION_NONE) session_start();
 
 // Proteksi: hanya admin
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
-    header("Location: /gamehub/auth/login.php");
+    header("Location: https://indgamehub.rf.gd/auth/login.php");
     exit;
 }
 
 include('../includes/database.php'); // Koneksi DB
 include('../includes/navbar.php');   // Navbar
 
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 $error = '';
 $success = '';
 
-// Variabel form
-$name = $developer = $publisher = $release_year = $min_spec = $rec_spec = '';
-$steam_price = $epic_price = $steam_link = $epic_link = '';
-$screenshot1 = $screenshot2 = $screenshot3 = null;
+$name = $developer = $publisher = $release_year = '';
+$steam_link = $alt_link = '';
+$min_spec = $rec_spec = $cover = $screenshot1 = $screenshot2 = $screenshot3 = null;
 
 // Ambil daftar genre dari DB
 $genre_list = [];
@@ -42,13 +45,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim(filter_input(INPUT_POST, 'name', FILTER_SANITIZE_SPECIAL_CHARS)) ?: '';
     $developer = trim(filter_input(INPUT_POST, 'developer', FILTER_SANITIZE_SPECIAL_CHARS)) ?: null;
     $publisher = trim(filter_input(INPUT_POST, 'publisher', FILTER_SANITIZE_SPECIAL_CHARS)) ?: null;
-    $min_spec = trim(filter_input(INPUT_POST, 'min_spec', FILTER_SANITIZE_SPECIAL_CHARS)) ?: '';
-    $rec_spec = trim(filter_input(INPUT_POST, 'rec_spec', FILTER_SANITIZE_SPECIAL_CHARS)) ?: '';
+
+    // Ambil teks mentah dari textarea (tanpa disaring dulu, karena akan diproses sebagai JSON)
+    $minSpecText = $_POST['min_spec'];
+    $recSpecText = $_POST['rec_spec'];
+
     $steam_link = trim(filter_input(INPUT_POST, 'steam_link', FILTER_SANITIZE_URL)) ?: '';
-    $epic_link = trim(filter_input(INPUT_POST, 'epic_link', FILTER_SANITIZE_URL)) ?: '';
+    $alt_link = trim(filter_input(INPUT_POST, 'alt_link', FILTER_SANITIZE_URL)) ?: '';
     $release_year = filter_input(INPUT_POST, 'release_year', FILTER_VALIDATE_INT);
-    $steam_price = filter_input(INPUT_POST, 'steam_price', FILTER_VALIDATE_FLOAT);
-    $epic_price = filter_input(INPUT_POST, 'epic_price', FILTER_VALIDATE_FLOAT);
 
     $selected_genres = isset($_POST['genres']) ? $_POST['genres'] : [];
 
@@ -56,43 +60,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $screenshot1 = uploadScreenshot('screenshot1');
     $screenshot2 = uploadScreenshot('screenshot2');
     $screenshot3 = uploadScreenshot('screenshot3');
+    $cover = uploadScreenshot('cover');
 
-    // Validasi
+    // Validasi lengkap
     if (!$name || strlen($name) < 3) {
         $error = 'Nama game wajib diisi minimal 3 karakter.';
-    } elseif ($release_year !== false && ($release_year < 1970 || $release_year > date('Y'))) {
-        $error = 'Tahun rilis tidak valid.';
-    } elseif ($steam_price !== false && $steam_price < 0) {
-        $error = 'Harga Steam harus 0 atau lebih.';
-    } elseif ($epic_price !== false && $epic_price < 0) {
-        $error = 'Harga Epic Games harus 0 atau lebih.';
+    } elseif ($release_year === false || $release_year < 1970 || $release_year > date('Y')) {
+        $error = 'Tahun rilis wajib diisi dan harus valid.';
+    } elseif (!$developer || strlen($developer) < 2) {
+        $error = 'Developer wajib diisi.';
+    } elseif (!$publisher || strlen($publisher) < 2) {
+        $error = 'Publisher wajib diisi.';
+    } elseif (empty($selected_genres)) {
+        $error = 'Minimal pilih satu genre.';
+    } elseif (!is_array(json_decode($minSpecText, true))) {
+        $error = 'Format Minimum Spec tidak valid (harus JSON).';
+    } elseif (!is_array(json_decode($recSpecText, true))) {
+        $error = 'Format Recommended Spec tidak valid (harus JSON).';
     } elseif ($steam_link && !filter_var($steam_link, FILTER_VALIDATE_URL)) {
         $error = 'Link Steam tidak valid.';
-    } elseif ($epic_link && !filter_var($epic_link, FILTER_VALIDATE_URL)) {
-        $error = 'Link Epic Games tidak valid.';
+    } elseif ($alt_link && !filter_var($alt_link, FILTER_VALIDATE_URL)) {
+        $error = 'Link Alternatif tidak valid.';
+    } elseif (!$cover || !file_exists($cover)) {
+        $error = 'Cover wajib diunggah.';
     }
 
     if ($error === '') {
+        // Encode JSON untuk disimpan
+        $min_spec = json_encode(json_decode($minSpecText, true));
+        $rec_spec = json_encode(json_decode($recSpecText, true));
+
         $sql = "INSERT INTO games 
-            (name, developer, publisher, release_year, min_spec, rec_spec, steam_price, epic_price, steam_link, epic_link, screenshot1, screenshot2, screenshot3)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            (name, developer, publisher, release_year, min_spec, rec_spec, steam_link, alt_link, cover, screenshot1, screenshot2, screenshot3)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
         $stmt = mysqli_prepare($conn, $sql);
         if (!$stmt) {
             $error = 'Gagal menyiapkan statement.';
         } else {
             mysqli_stmt_bind_param(
                 $stmt,
-                "sssissddsssss",
+                "sssissssssss",
                 $name,
                 $developer,
                 $publisher,
                 $release_year,
                 $min_spec,
                 $rec_spec,
-                $steam_price,
-                $epic_price,
                 $steam_link,
-                $epic_link,
+                $alt_link,
+                $cover,
                 $screenshot1,
                 $screenshot2,
                 $screenshot3
@@ -108,9 +125,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 $success = 'Game berhasil ditambahkan!';
-                $name = $developer = $publisher = $min_spec = $rec_spec = $steam_link = $epic_link = '';
-                $release_year = $steam_price = $epic_price = '';
-                $screenshot1 = $screenshot2 = $screenshot3 = null;
+                $name = $developer = $publisher = $minSpecText = $recSpecText = $steam_link = $alt_link = '';
+                $release_year = '';
+                $cover = $screenshot1 = $screenshot2 = $screenshot3 = null;
             } else {
                 $error = 'Gagal menyimpan data: ' . mysqli_stmt_error($stmt);
             }
@@ -118,92 +135,219 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
-?>
 
+?>
 <!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <title>Tambah Game</title>
-    <style>
-        /* Gaya disingkat */
-        body { font-family: Arial; background: #f6f6f6; }
-        #box { background: #fff; padding: 20px 40px; margin: 30px auto; max-width: 600px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        label { font-weight: bold; display: block; margin-top: 12px; }
-        input, textarea { width: 100%; padding: 8px; margin-top: 4px; border: 1px solid #ccc; border-radius: 4px; }
-        textarea { resize: vertical; min-height: 60px; }
-        button { background: #4CAF50; color: #fff; padding: 10px 16px; margin-top: 15px; border: none; border-radius: 4px; cursor: pointer; }
-        .alert { margin-top: 15px; padding: 10px; border-radius: 4px; }
-        .alert-error { background: #f8d7da; color: #721c24; }
-        .alert-success { background: #d4edda; color: #155724; }
-        .genre-list { margin-top: 8px; }
-        .genre-list label { font-weight: normal; display: inline-block; margin-right: 12px; }
-        .genre-list {display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 8px;}
-        .genre-list label {font-weight: normal; display: flex; align-items: center; gap: 6px; background-color: #f1f1f1; padding: 6px 10px; border-radius: 4px; cursor: pointer; transition: background-color 0.2s ease;}
-        .genre-list label:hover {background-color: #e0e0e0;}
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add New Game - GameHub</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://indgamehub.rf.gd/css/admin_add_style.css">
 </head>
-<body>
-    <div id="box">
-        <h1>Tambah Game Baru</h1>
-        <a href="admin_panel.php">&larr; Kembali ke Panel Admin</a>
-
-        <?php if ($error): ?>
-            <div class="alert alert-error"><?= htmlspecialchars($error); ?></div>
-        <?php elseif ($success): ?>
-            <div class="alert alert-success"><?= htmlspecialchars($success); ?></div>
-        <?php endif; ?>
-
-        <form method="post" enctype="multipart/form-data">
-            <label>Nama Game*</label>
-            <input type="text" name="name" value="<?= htmlspecialchars($name); ?>" required>
-
-            <label>Developer</label>
-            <input type="text" name="developer" value="<?= htmlspecialchars($developer); ?>">
-
-            <label>Publisher</label>
-            <input type="text" name="publisher" value="<?= htmlspecialchars($publisher); ?>">
-            
-            <label>Genre</label>
-            <div class="genre-list">
-                <?php foreach ($genre_list as $genre): ?>
-                    <label>
-                        <input type="checkbox" name="genres[]" value="<?= $genre['id']; ?>"> <?= htmlspecialchars($genre['name']); ?>
-                    </label>
-                <?php endforeach; ?>
+<body>    
+    <div class="main-content">
+        <div class="form-container">
+            <div class="form-header">
+                <div class="form-icon">
+                    <i class="fas fa-plus"></i>
+                </div>
+                <h1 class="form-title">Add New Game</h1>
+                <p class="form-subtitle">Expand your gaming library</p>
             </div>
 
-            <label>Tahun Rilis</label>
-            <input type="number" name="release_year" value="<?= htmlspecialchars($release_year); ?>">
+            <a href="admin_panel.php" class="back-link">
+                <i class="fas fa-arrow-left"></i>
+                Back to Admin Panel
+            </a>
 
-            <label>Spesifikasi Minimum</label>
-            <textarea name="min_spec"><?= htmlspecialchars($min_spec); ?></textarea>
+            <?php if ($error ?? false): ?>
+                <div class="alert alert-error">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <?= htmlspecialchars($error); ?>
+                </div>
+            <?php elseif ($success ?? false): ?>
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle"></i>
+                    <?= htmlspecialchars($success); ?>
+                </div>
+            <?php endif; ?>
 
-            <label>Spesifikasi Rekomendasi</label>
-            <textarea name="rec_spec"><?= htmlspecialchars($rec_spec); ?></textarea>
+            <form method="post" enctype="multipart/form-data" id="addGameForm">
+                <div class="form-grid">
+                    <!-- Basic Information -->
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>
+                                <i class="fas fa-gamepad"></i>
+                                Game Name <span class="required">*</span>
+                            </label>
+                            <input type="text" name="name" autocomplete="off" value="<?= htmlspecialchars($name ?? ''); ?>" placeholder="Enter game name">
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                <i class="fas fa-calendar"></i>
+                                Release Year <span class="required">*</span>
+                            </label>
+                            <input type="number" name="release_year" autocomplete="off" value="<?= htmlspecialchars($release_year ?? ''); ?>" placeholder="2024" min="1950" max="2030">
+                        </div>
+                    </div>
 
-            <label>Harga Steam</label>
-            <input type="number" name="steam_price" step="0.01" value="<?= htmlspecialchars($steam_price); ?>">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>
+                                <i class="fas fa-code"></i>
+                                Developer <span class="required">*</span>
+                            </label>
+                            <input type="text" name="developer" autocomplete="off" value="<?= htmlspecialchars($developer ?? ''); ?>" placeholder="Game developer">
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                <i class="fas fa-building"></i>
+                                Publisher <span class="required">*</span>
+                            </label>
+                            <input type="text" name="publisher" autocomplete="off" value="<?= htmlspecialchars($publisher ?? ''); ?>" placeholder="Game publisher">
+                        </div>
+                    </div>
 
-            <label>Harga Epic Games</label>
-            <input type="number" name="epic_price" step="0.01" value="<?= htmlspecialchars($epic_price); ?>">
+                    <!-- Genre Selection -->
+                    <div class="form-group full-width">
+                        <label>
+                            <i class="fas fa-tags"></i>
+                            Genres <span class="required">*</span>
+                        </label>
+                        <div class="genre-list">
+                            <?php 
+                            // Sample genres - replace with actual database data
+                            $genre_list = $genre_list ?? [
+                                ['id' => 1, 'name' => 'Action'],
+                                ['id' => 2, 'name' => 'Adventure'],
+                                ['id' => 3, 'name' => 'RPG'],
+                                ['id' => 4, 'name' => 'Strategy'],
+                                ['id' => 5, 'name' => 'Simulation'],
+                                ['id' => 6, 'name' => 'Sports'],
+                                ['id' => 7, 'name' => 'Racing'],
+                                ['id' => 8, 'name' => 'Puzzle']
+                            ];
+                            
+                            foreach ($genre_list as $genre): ?>
+                                <div class="genre-item">
+                                    <input type="checkbox" name="genres[]" value="<?= $genre['id']; ?>" id="genre_<?= $genre['id']; ?>">
+                                    <label for="genre_<?= $genre['id']; ?>"><?= htmlspecialchars($genre['name']); ?></label>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
 
-            <label>Link Steam</label>
-            <input type="url" name="steam_link" value="<?= htmlspecialchars($steam_link); ?>">
+                    <!-- System Requirements -->
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>
+                                <i class="fas fa-microchip"></i>
+                                Minimum Specifications <span class="required">*</span>
+                            </label>
+                            <textarea name="min_spec" autocomplete="off" placeholder="Enter minimum system requirements..."><?= htmlspecialchars($min_spec ?? 
+                            '{"OS": "Windows 10, Mac OS",
+"Processor": "Enter",
+"Memory": "Enter GB RAM",
+"Graphics": "Enter",
+"Storage": "Enter GB available space"}'); ?>
+                            </textarea>
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                <i class="fas fa-rocket"></i>
+                                Recommended Specifications <span class="required">*</span>
+                            </label>
+                            <textarea name="rec_spec" autocomplete="off" placeholder="Enter recommended system requirements..."><?= htmlspecialchars($rec_spec ?? 
+                            '{"OS": "Windows 10, Mac OS",
+"Processor": "Enter",
+"Memory": "Enter GB RAM",
+"Graphics": "Enter",
+"Storage": "Enter GB SSD available space"}'); ?>
+                            </textarea>                            
+                        </div>
+                    </div>
 
-            <label>Link Epic Games</label>
-            <input type="url" name="epic_link" value="<?= htmlspecialchars($epic_link); ?>">
+                    <!-- Store Links -->
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>
+                                <i class="fab fa-steam"></i>
+                                Steam Link
+                            </label>
+                            <input type="url" name="steam_link" autocomplete="off" value="<?= htmlspecialchars($steam_link ?? ''); ?>" placeholder="https://store.steampowered.com/app/...">
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                <i class="fas fa-store"></i>
+                                Alternative Link
+                            </label>
+                            <input type="url" name="alt_link" autocomplete="off" value="<?= htmlspecialchars($alt_link ?? ''); ?>" placeholder="https://store.epicgames.com/...">
+                        </div>
+                    </div>
 
-            <label>Screenshot 1</label>
-            <input type="file" name="screenshot1">
-            <label>Screenshot 2</label>
-            <input type="file" name="screenshot2">
-            <label>Screenshot 3</label>
-            <input type="file" name="screenshot3">
+                    <!-- Media Files -->
+                    <div class="form-group full-width">
+                        <label>
+                            <i class="fas fa-image"></i>
+                            Game Cover (Min. 700<sub>x</sub>700 / Max. 1200<sub>x</sub>1200)<span class="required">*</span>
+                        </label>
+                        <input type="file" name="cover" accept="image/*">
+                    </div>
 
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>
+                                <i class="fas fa-camera"></i>
+                                Screenshot 1
+                            </label>
+                            <input type="file" name="screenshot1" accept="image/*">
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                <i class="fas fa-camera"></i>
+                                Screenshot 2
+                            </label>
+                            <input type="file" name="screenshot2" accept="image/*">
+                        </div>
+                    </div>
 
-            <button type="submit">Simpan Game</button>
-        </form>
+                    <div class="form-group">
+                        <label>
+                            <i class="fas fa-camera"></i>
+                            Screenshot 3
+                        </label>
+                        <input type="file" name="screenshot3" accept="image/*">
+                    </div>
+
+                    <button type="submit" class="submit-btn">
+                        <i class="fas fa-save"></i>
+                        Save Game
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
+
+    <script>
+        document.getElementById('addGameForm').addEventListener('submit', function() {
+            const form = this;
+            const submitBtn = form.querySelector('.submit-btn');
+            
+            form.classList.add('loading');
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving Game...';
+        });
+
+        document.querySelectorAll('input[type="file"]').forEach(input => {
+            input.addEventListener('change', function() {
+                if (this.files && this.files[0]) {
+                    console.log(`Selected file: ${this.files[0].name}`);
+                }
+            });
+        });
+    </script>
 </body>
 </html>
