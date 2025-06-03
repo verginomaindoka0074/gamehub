@@ -1,0 +1,193 @@
+/* Reset global */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  font-family: 'Inter', sans-serif;
+  color: white;
+  line-height: 1.6;
+  background: #0f1419;
+  overflow-x: hidden;
+}
+
+/* ====================== */
+/* ====== ABOUT PAGE ==== */
+/* ====================== */
+
+/* Gradient teks untuk judul */
+#about-page h1,
+#about-page h2,
+#about-page h3 {
+  background: linear-gradient(to right, #06b6d4, #7c3aed);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Gambar responsif */
+#about-page img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover;
+}
+
+/* ===== Home Section ===== */
+#home-box {
+  position: relative;
+  width: 100%;
+  
+  overflow: hidden;
+  margin-bottom: 0
+}
+
+#home-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 0;
+  box-shadow: none;
+  filter: brightness(0.3);
+}
+
+.about-us-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 1rem 2rem;
+  background: rgba(17, 24, 39, 0.7);
+  color: #06b6d4;
+  font-size: 3.5rem;
+  font-weight: 700;
+  border-radius: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  text-align: center;
+  max-width: 90%;
+  white-space: normal;
+  word-wrap: break-word;
+}
+
+/* ===== Gallery Section (Our Crew) ===== */
+#gallery {
+  margin-top: 0;
+  padding-top: 0;
+  margin-bottom: 4rem;
+  padding: 2rem 1rem 0;
+  text-align: center;
+}
+
+#gallery h2 {
+  font-size: 2.5rem;
+  font-weight: bold;
+  color: #06b6d4;
+  margin-bottom: 2rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.gallery-pair {
+  display: inline-block;
+  margin: 1rem;
+  width: 280px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 1rem;
+  overflow: hidden;
+  vertical-align: top;
+}
+
+.gallery-pair figure {
+  margin: 0;
+  padding: 1rem;
+  text-align: center;
+}
+
+.gallery-pair img {
+  width: 100%;
+  max-height: 180px;
+  object-fit: cover;
+}
+
+.gallery-pair figcaption {
+  margin: 0;
+  padding: 0.5rem 0 1rem;
+}
+
+/* ===== About Section ===== */
+#about {
+  max-width: 1000px;
+  margin: 0 auto 4rem;
+  padding: 2rem;
+  background: rgba(31, 41, 55, 0.6);
+  border: 1px solid rgba(75, 85, 99, 0.2);
+  border-radius: 1rem;
+  text-align: justify;
+}
+
+/* ===== Contact Section ===== */
+#contact {
+  max-width: 600px;
+  margin: 0 auto 4rem;
+  padding: 2rem;
+  background: rgba(31, 41, 55, 0.6);
+  border: 1px solid rgba(75, 85, 99, 0.3);
+  border-radius: 0;
+  text-align: center;
+}
+#contact a {
+  color: #06b6d4;
+  text-decoration: none;
+}
+
+#about-page address {
+  margin-top: 1rem;
+  line-height: 1.8;
+  font-style: normal;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 600px) {
+  #about-page .about-us-text {
+    font-size: 2rem;
+    padding: 0.5rem 1rem;
+  }
+
+  #about-page .gallery-pair {
+    width: 100%;
+    margin: 1rem 0;
+  }
+
+  #about-page #about,
+  #about-page #contact {
+    padding: 1rem;
+    font-size: 0.9rem;
+  }
+}
+
+@media (min-width: 601px) and (max-width: 900px) {
+  #about-page .about-us-text {
+    font-size: 2.8rem;
+  }
+
+  #about-page .gallery-pair {
+    width: 45%;
+    margin: 1rem 1%;
+  }
+}
+
+@media (min-width: 901px) {
+  #about-page .about-us-text {
+    font-size: 3.5rem;
+  }
+
+  #about-page .gallery-pair {
+    width: 230px;
+    margin: 1rem;
+  }
+}

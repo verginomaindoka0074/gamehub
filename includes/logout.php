@@ -5,5 +5,5 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 session_unset(); // Hapus semua variabel session
 session_destroy(); // Hapus session dari server
-header("Location: /gamehub/index.php");
+header("Location: https://indgamehub.rf.gd/index.php");
 exit;

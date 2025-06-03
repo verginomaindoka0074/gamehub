@@ -1,12 +1,12 @@
 <?php
-// Mulai session jika belum dimulai
+ob_start();
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
 // Jika sudah login, redirect ke halaman utama
 if (isset($_SESSION['username'])) {
-    header("Location: /gamehub/index.php");
+    header("Location: https://indgamehub.rf.gd/index.php");
     exit;
 }
 
@@ -56,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 mysqli_stmt_close($stmt_insert);
                 mysqli_stmt_close($stmt_check);
                 mysqli_close($conn);
-                header("Location: /gamehub/auth/login.php");
+                header("Location: https://indgamehub.rf.gd/auth/login.php");
                 exit;
             } else {
                 $_SESSION['error'] = "Gagal registrasi. Coba lagi.";
@@ -77,144 +77,170 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8" />
-    <title>Register GameHub</title>
-    <style>
-        /* style.css */
-body {
-    font-family: Arial, sans-serif;
-    background-color: #f4f6f8;
-    height: 100vh;
-    position: relative;
-}
-
-h2 {
-    margin-bottom: 25px;
-    color: #333;
-    text-align: center;
-    font-weight: 600;
-}
-
-/* Container untuk form, posisikan di tengah layar */
-.register-container {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background-color: white;
-    padding: 30px 40px;
-    border-radius: 8px;
-    box-shadow: 0 0 15px rgba(0,0,0,0.1);
-    width: 320px;
-}
-
-/* Pesan error */
-.error-msg {
-    color: #c0392b;
-    background-color: #f8d7da;
-    padding: 10px 15px;
-    border-radius: 5px;
-    margin-bottom: 15px;
-    font-size: 14px;
-    border: 1px solid #f5c6cb;
-}
-
-/* Form styling */
-form {
-    display: flex;
-    flex-direction: column;
-}
-
-label, /* Kalau mau pakai label, bisa ditambahkan */
-p {
-    font-weight: bold;
-    margin-bottom: 5px;
-    color: #555;
-    font-size: 14px;
-}
-
-input[type="text"],
-input[type="password"] {
-    padding: 10px;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-    font-size: 14px;
-    margin-bottom: 20px;
-    transition: border-color 0.2s ease-in-out;
-}
-
-input[type="text"]:focus,
-input[type="password"]:focus {
-    outline: none;
-    border-color: #007bff;
-    box-shadow: 0 0 5px rgba(0,123,255,0.5);
-}
-
-input[type="submit"] {
-    background-color: #007bff;
-    border: none;
-    padding: 12px;
-    color: white;
-    font-weight: 600;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 16px;
-    transition: background-color 0.3s ease;
-}
-
-input[type="submit"]:hover {
-    background-color: #0056b3;
-}
-
-p a {
-    color: #007bff;
-    text-decoration: none;
-    font-weight: 600;
-    transition: color 0.2s ease;
-}
-
-p a:hover {
-    text-decoration: underline;
-    color: #0056b3;
-}
-
-p {
-    text-align: center;
-    margin-top: 20px;
-    font-size: 14px;
-    color: #555;
-}
-
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - GameHub</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://indgamehub.rf.gd/css/register_style.css">
 </head>
-<body>
+<body>    
     <div class="register-container">
-        <h2>Register</h2>
+        <div class="register-header">
+            <div class="register-icon">
+                <i class="fas fa-user-plus"></i>
+            </div>
+            <h2>Join GameHub</h2>
+            <p class="register-subtitle">Create your gaming account today</p>
+        </div>
 
         <!-- Tampilkan pesan error jika ada -->
         <?php if (!empty($error)): ?>
-            <div class="error-msg"><?= htmlspecialchars($error) ?></div>
+            <div class="error-msg">
+                <i class="fas fa-exclamation-triangle"></i>
+                <?= htmlspecialchars($error) ?>
+            </div>
         <?php endif; ?>
 
         <!-- Form Register -->
-        <form method="post" action="register.php">
-            <label for="username">Username:</label>
-            <input type="text" id="username" name="username" value="<?= htmlspecialchars($_POST['username'] ?? '') ?>">
+        <form method="post" action="register.php" id="registerForm">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <div class="input-container">
+                    <i class="fas fa-user input-icon"></i>
+                    <input type="text" id="username" autocomplete="off" name="username" value="<?= htmlspecialchars($_POST['username'] ?? '') ?>" placeholder="Choose a username" required>
+                </div>
+            </div>
 
-            <label for="password">Password:</label>
-            <input type="password" id="password" name="password">
+            <div class="form-group">
+                <label for="password">Password</label>
+                <div class="input-container">
+                    <i class="fas fa-lock input-icon"></i>
+                    <input type="password" id="password" autocomplete="off" name="password" placeholder="Create a strong password" required>
+                </div>
+                <div class="password-strength">
+                    <div class="strength-bar">
+                        <div class="strength-fill" id="strengthFill"></div>
+                    </div>
+                    <span id="strengthText">Password strength</span>
+                </div>
+            </div>
 
-            <label for="confirm_password">Konfirmasi Password:</label>
-            <input type="password" id="confirm_password" name="confirm_password">
+            <div class="form-group">
+                <label for="confirm_password">Confirm Password</label>
+                <div class="input-container">
+                    <i class="fas fa-shield-alt input-icon"></i>
+                    <input type="password" id="confirm_password" name="confirm_password" placeholder="Confirm your password" required>
+                </div>
+            </div>
 
-            <input type="submit" value="Daftar">
+            <input type="submit" value="Create Account" id="submitBtn">
         </form>
 
-        <p><a href="/gamehub/auth/login.php">Sudah punya akun? Login</a></p>
+        <div class="login-link">
+            <p>Already have an account?</p>
+            <a href="https://indgamehub.rf.gd/auth/login.php">
+                <i class="fas fa-sign-in-alt"></i>
+                Sign In
+            </a>
+        </div>
     </div>
+
+    <script>
+        // Password strength checker
+        function checkPasswordStrength(password) {
+            let strength = 0;
+            let text = 'Weak';
+            let className = 'strength-weak';
+
+            if (password.length >= 8) strength++;
+            if (/[a-z]/.test(password)) strength++;
+            if (/[A-Z]/.test(password)) strength++;
+            if (/[0-9]/.test(password)) strength++;
+            if (/[^A-Za-z0-9]/.test(password)) strength++;
+
+            switch (strength) {
+                case 0:
+                case 1:
+                    text = 'Very Weak';
+                    className = 'strength-weak';
+                    break;
+                case 2:
+                    text = 'Weak';
+                    className = 'strength-weak';
+                    break;
+                case 3:
+                    text = 'Fair';
+                    className = 'strength-fair';
+                    break;
+                case 4:
+                    text = 'Good';
+                    className = 'strength-good';
+                    break;
+                case 5:
+                    text = 'Strong';
+                    className = 'strength-strong';
+                    break;
+            }
+
+            return { text, className };
+        }
+
+        // Password strength indicator
+        document.getElementById('password').addEventListener('input', function() {
+            const password = this.value;
+            const strengthFill = document.getElementById('strengthFill');
+            const strengthText = document.getElementById('strengthText');
+            
+            if (password.length === 0) {
+                strengthFill.className = 'strength-fill';
+                strengthText.textContent = 'Password strength';
+                return;
+            }
+
+            const { text, className } = checkPasswordStrength(password);
+            strengthFill.className = `strength-fill ${className}`;
+            strengthText.textContent = text;
+        });
+
+        // Password confirmation validation
+        document.getElementById('confirm_password').addEventListener('input', function() {
+            const password = document.getElementById('password').value;
+            const confirmPassword = this.value;
+            
+            if (confirmPassword && password !== confirmPassword) {
+                this.style.borderColor = '#ef4444';
+            } else {
+                this.style.borderColor = '';
+            }
+        });
+
+        // Add loading state on form submission
+        document.getElementById('registerForm').addEventListener('submit', function(e) {
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirm_password').value;
+            
+            if (password !== confirmPassword) {
+                e.preventDefault();
+                alert('Passwords do not match!');
+                return;
+            }
+
+            const form = this;
+            const submitBtn = document.getElementById('submitBtn');
+            
+            form.classList.add('loading');
+            submitBtn.value = 'Creating Account...';
+        });
+
+        // Focus first input on load
+        window.addEventListener('load', function() {
+            document.getElementById('username').focus();
+        });
+    </script>
 </body>
 </html>
+<?php ob_end_flush(); ?>

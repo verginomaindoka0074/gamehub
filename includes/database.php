@@ -1,9 +1,9 @@
 <?php
 // Konfigurasi database
-$db_host = 'localhost';
-$db_user = 'root';
-$db_pass = '';
-$db_name = 'gamehub_db';
+$db_host = 'sql101.infinityfree.com';
+$db_user = 'if0_39104727';
+$db_pass = 'SkN631cBue';
+$db_name = 'if0_39104727_gamehub_db';
 
 // Buat dan cek koneksi
 try {
